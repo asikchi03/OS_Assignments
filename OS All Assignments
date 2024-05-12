@@ -1,0 +1,47 @@
+%% LAB – 4: CLASSICAL PROBLEMS USING THREADS AND MUTEX
+
+import threading
+
+lock = threading.Lock()
+can_read = threading.Condition(lock)
+can_write = threading.Condition(lock)
+
+readers_count = 0
+writer_writing = False
+
+def reader():
+    global readers_count, writer_writing
+    with lock:
+        readers_count += 1
+        while writer_writing:
+            can_read.wait()
+        print(f"{threading.currentThread().name} is reading.")
+    with open("file.txt", "r") as file:
+        for line in file:
+            print(f"{threading.currentThread().name} read: {line.strip()}")
+        print()
+
+    with lock:
+        readers_count -= 1
+        if readers_count == 0:
+            can_write.notify()
+
+def writer():
+    global writer_writing
+    with lock:
+        while readers_count > 0 or writer_writing:
+            can_write.wait()
+        print(f"{threading.currentThread().name} is writing.")
+        writer_writing = True
+    
+    with open("file.txt", "a") as file:
+        file.write(f"{threading.currentThread().name} wrote something.\n")
+    
+    with lock:
+        writer_writing = False
+        can_read.notify_all()
+        can_write.notify()
+
+for i in range(3):
+    threading.Thread(target=reader, name=f"Reader-{i}").start()
+    threading.Thread(target=writer, name=f"Writer-{i}").start()
